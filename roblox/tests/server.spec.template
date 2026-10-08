@@ -1,0 +1,101 @@
+local Catalog=require('../src/shared/Catalog')
+local Rules=require('../src/shared/Rules')
+local Lobby=require('../src/shared/Lobby')
+local function signal()
+    local handlers={}
+    return {Connect=function(_,callback) table.insert(handlers,callback) end,
+        Fire=function(_,...) for _,callback in ipairs(handlers) do callback(...) end end}
+end
+local clock=0
+local jobs={}
+local task={}
+function task.wait(delay) coroutine.yield(delay or 0) end
+function task.spawn(callback)
+    local thread=coroutine.create(callback)
+    local ok,delay=coroutine.resume(thread)
+    assert(ok,delay)
+    if coroutine.status(thread)~='dead' then table.insert(jobs,{thread=thread,at=clock+delay}) end
+end
+local function advance(seconds)
+    local finish=clock+seconds
+    while true do
+        local index,nextJob=nil,nil
+        for i,job in ipairs(jobs) do if job.at<=finish and (not nextJob or job.at<nextJob.at) then index,nextJob=i,job end end
+        if not index then break end
+        table.remove(jobs,index);clock=nextJob.at
+        local ok,delay=coroutine.resume(nextJob.thread);assert(ok,delay)
+        if coroutine.status(nextJob.thread)~='dead' then
+            table.insert(jobs,{thread=nextJob.thread,at=clock+delay})
+        end
+    end
+    clock=finish
+end
+local players={PlayerAdded=signal(),PlayerRemoving=signal(),GetPlayers=function() return {} end}
+local snapshots={}
+local remotes={}
+local Instance={new=function(kind)
+    local object={}
+    if kind=='RemoteEvent' then
+        object.OnServerEvent=signal()
+        function object:FireClient(player,payload) snapshots[player]=payload end
+        table.insert(remotes,object)
+    end
+    return object
+end}
+local game={GetService=function(_,name)
+    if name=='Players' then return players end
+    return {AutoChess={Catalog='Catalog',Rules='Rules',Lobby='Lobby'}}
+end}
+local World={build=function() end,route=function() end,LobbyLabel={}}
+local script={Parent={World='World'}}
+local Random={new=function() return {
+    NextNumber=function() return 0.2 end,
+    NextInteger=function(_,low) return low end} end}
+local os={clock=function() return clock end}
+local function startServer()
+    local modules={Catalog=Catalog,Rules=Rules,Lobby=Lobby,World=World}
+    local require=function(name) return modules[name] end
+    --[[SERVER_SOURCE]]
+end
+startServer()
+local function join(id)
+    local player={UserId=id,DisplayName='Player'..id,Parent=players,CharacterAdded=signal(),kicked=false}
+    function player:Kick() self.kicked=true end
+    players.PlayerAdded:Fire(player)
+    return player
+end
+local function leave(player) player.Parent=nil;players.PlayerRemoving:Fire(player) end
+local list={}
+for i=1,7 do list[i]=join(i) end
+assert(snapshots[list[1]].phase=='Lobby','seven must remain in lobby')
+advance(1)
+remotes[1].OnServerEvent:Fire(list[1],{kind='Ready'})
+assert(snapshots[list[1]].phase=='Lobby','remote Ready cannot bypass eight-player gate')
+list[8]=join(8)
+assert(snapshots[list[1]].phase=='Starting','eighth starts countdown')
+local overflow=join(9)
+assert(overflow.kicked,'ninth player rejected')
+advance(3)
+leave(list[8])
+assert(snapshots[list[1]].phase=='Lobby','leaving cancels countdown immediately')
+advance(10)
+assert(snapshots[list[1]].phase=='Lobby','cancelled task cannot start a game')
+list[8]=join(10)
+advance(8)
+assert(snapshots[list[1]].phase=='Preparation','replacement eighth starts match')
+local state=snapshots[list[1]].state
+advance(0.2)
+remotes[1].OnServerEvent:Fire(list[1],{kind='Buy',slot=1})
+assert(#state.units==1,'shop works after eight-player start')
+advance(0.2)
+remotes[1].OnServerEvent:Fire(list[1],{kind='Move',id=state.units[1].id,x=1,y=1})
+assert(state.units[1].y==1,'deployment accepted in preparation')
+remotes[1].OnServerEvent:Fire(list[2],{kind='Buy',slot=1})
+advance(0.2)
+local opponent=snapshots[list[2]].state
+remotes[1].OnServerEvent:Fire(list[2],{kind='Move',id=opponent.units[1].id,x=1,y=1})
+advance(24.5)
+assert(snapshots[list[1]].phase=='Battle','match advances to battle')
+leave(list[8])
+assert(snapshots[list[1]].phase~='Lobby','disconnect during match does not reset the running game')
+print('ALL SERVER LIFECYCLE TESTS PASSED')

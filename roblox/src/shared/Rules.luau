@@ -91,12 +91,13 @@ function Rules.battle(left, right, catalog)
             end
         end
     end
-    return {fighters = fighters, tick = 0, finished = false, winner = 0}
+    return {fighters = fighters, tick = 0, finished = false, winner = 0, events = {}}
 end
 
 function Rules.step(battle)
     if battle.finished then return end
     battle.tick += 1
+    battle.events = {}
     local occupied = {}
     for _, f in ipairs(battle.fighters) do
         if f.hp > 0 then occupied[f.x..':'..f.y] = true end
@@ -113,8 +114,9 @@ function Rules.step(battle)
             if target then
                 fighter.cooldown -= 1
                 if distance <= fighter.range and fighter.cooldown <= 0 then
-                    target.hp = math.max(0, target.hp - math.max(1,
-                        math.floor(fighter.attack * 100 / (100 + target.defense*5))))
+                    local damage=math.max(1,math.floor(fighter.attack * 100 / (100 + target.defense*5)))
+                    target.hp = math.max(0, target.hp-damage)
+                    table.insert(battle.events,{kind='Attack',from=fighter.id,to=target.id,damage=damage})
                     fighter.cooldown = fighter.interval
                     if target.hp == 0 then occupied[target.x..':'..target.y] = nil end
                 elseif distance > fighter.range then

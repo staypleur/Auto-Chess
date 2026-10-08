@@ -4,7 +4,7 @@ local function check(ok,message) assert(ok,message);print('PASS '..message) end
 local count=0
 for _,unit in pairs(Catalog.units) do
     count+=1
-    check(type(unit.attack)=='number' and type(unit.speed)=='number','stats '..unit.name)
+    assert(type(unit.attack)=='number' and type(unit.speed)=='number','stats '..unit.name)
 end
 assert(count==1183,'catalog count')
 local state={level=1,units={}}
@@ -34,6 +34,12 @@ enemy.x,enemy.y=1,1
 battle=Rules.battle({deployed},{enemy},Catalog)
 for _=1,120 do Rules.step(battle) end
 check(battle.finished,'combat terminates')
+local attack=Rules.battle({deployed},{enemy},Catalog)
+attack.fighters[1].y=3
+attack.fighters[2].y=4
+Rules.step(attack)
+assert(#attack.events>0 and attack.events[1].damage>0,'attack effects receive authoritative damage')
+check(attack.events[1].from~=attack.events[1].to,'attack event identifies source and target')
 check(deployed.name=='IVYSAUR' and deployed.y==1,'combat does not mutate collection')
 local duplicate=Rules.newUnit('IVYSAUR')
 duplicate.x,duplicate.y=2,1

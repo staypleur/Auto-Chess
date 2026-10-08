@@ -66,7 +66,8 @@
     "local:doctor": "node scripts/local-doctor.cjs",
     "local:dev": "npm run local:doctor && npm run dev",
     "roblox:build": "node roblox/tools/build-place.cjs",
-    "roblox:export": "tsx roblox/tools/export-data.ts"
+    "roblox:export": "tsx roblox/tools/export-data.ts",
+    "roblox:test": "node roblox/tools/test.cjs"
   },
   "dependencies": {
     "@colyseus/command": "^0.3.1",
