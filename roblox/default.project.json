@@ -1,0 +1,10 @@
+{
+  "name": "AutoChessRoblox",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": { "AutoChess": { "$path": "src/shared" } },
+    "ServerScriptService": { "AutoChessServer": { "$path": "src/server" } },
+    "StarterPlayer": { "StarterPlayerScripts": { "AutoChessClient": { "$path": "src/client" } } },
+    "Workspace": { "$properties": { "FilteringEnabled": true } }
+  }
+}

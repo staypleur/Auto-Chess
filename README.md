@@ -6,6 +6,7 @@
 
 - **[내 PC에서 실행하기 — 한국어 설정 안내](docs/LOCAL-KO.md)**
 - **[작업 및 검증 기록](WORKLOG.md)**
+- **[Roblox 포트 프로젝트 및 실행 안내](roblox/README.md)** — 초기 플레이 기반, 원작 전체 이식은 진행 중.
 - 코드와 변경 기록: https://github.com/staypleur/Auto-Chess
 
 아래 원작 소개와 출처를 유지합니다. Firebase와 MongoDB 설정 후 실제 로그인을 확인해야 합니다.

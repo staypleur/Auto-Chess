@@ -45,5 +45,7 @@ id_digital_ocean.pub
 /app/public/dist/server/app/public/dist/client/locales
 .devmode.json
 .assetpack/
+roblox/tools/luau/
+roblox/tools/luau-windows.zip
 app/public/dist/client/recorder.worker.js
 app/public/dist/client/recorder.worker.js.map
