@@ -1,0 +1,69 @@
+import { type IChatV2, Role } from "../../../../../types"
+import { useAppSelector } from "../../../hooks"
+import { type ChatRoom, removeMessage, searchById } from "../../../network"
+import { cc } from "../../utils/jsx"
+import PokemonPortrait from "../pokemon-portrait"
+import { Emotion } from "../../../../../types/enum/Emotion"
+import { PkmIndex } from "../../../../../types/enum/Pokemon"
+import { getPokemonCustomFromAvatar } from "../../../../../utils/avatar"
+
+export default function ChatMessage(props: {
+  message: IChatV2
+  source: ChatRoom
+}) {
+  const user = useAppSelector((state) => state.network.profile)
+  const role = user?.role
+  const time = new Date(props.message.time).toLocaleTimeString(undefined, {
+    timeStyle: "short"
+  })
+  const isServerMessage = props.message.authorId === "server"
+  const isEmote = Object.values(Emotion).includes(props.message.payload as Emotion)
+  const emoteData = isEmote ? getPokemonCustomFromAvatar(props.message.avatar) : null
+
+  return (
+    <div className={cc("chat-message-container", { "emote-message": isEmote })}>
+      {props.message.author && (
+        <div
+          className={cc("chat-user", {
+            "same-user": props.message.authorId === user?.uid,
+            "server-message": isServerMessage
+          })}
+        >
+          <PokemonPortrait avatar={props.message.avatar} />
+          <div
+            className="author-and-time"
+            title="open profile"
+            onClick={() => searchById(props.message.authorId)}
+          >
+            <span className="chat-message-author">{props.message.author}</span>
+            <span className="chat-message-time">{time}</span>
+          </div>
+          {role && (role === Role.MODERATOR || role === Role.ADMIN) && (
+            <button
+              className="remove-chat bubbly red"
+              title="Remove message"
+              onClick={() =>
+                removeMessage(
+                  {
+                    id: props.message.id
+                  },
+                  props.source
+                )
+              }
+            >
+              <p style={{ fontSize: "0.5em", margin: "0" }}>X</p>
+            </button>
+          )}
+        </div>
+      )}
+      {isEmote && emoteData ? (
+        <PokemonPortrait
+          portrait={{ index: PkmIndex[emoteData.name], shiny: emoteData.shiny, emotion: props.message.payload as Emotion }}
+          className="chat-emote-message"
+        />
+      ) : (
+        <p className="chat-message">{props.message.payload}</p>
+      )}
+    </div>
+  )
+}
