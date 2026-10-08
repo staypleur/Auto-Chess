@@ -96,6 +96,10 @@ local function draw(payload)
         local types={};for kind,count in pairs(payload.synergies) do table.insert(types,kind..' '..count) end
         table.sort(types);label(root,'타입 수집\n'..table.concat(types,'\n'),0.81,0.53,0.17,0.24)
     end
+    if payload.phase=='Finished' then
+        local button=label(root,state.exitError or '로비로 돌아가기',0.25,0.77,0.5,0.06,true)
+        button.Activated:Connect(function() send('Return') end)
+    end
 end
 local function worldClick(position)
     if not latest or latest.phase~='Preparation' or not View.folder then return end

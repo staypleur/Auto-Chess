@@ -1,0 +1,99 @@
+local Config=require('../src/shared/PlaceConfig')
+local Queue=require('../src/shared/Queue')
+Config.LobbyPlaceId=100
+Config.MatchPlaceId=200
+local function signal()
+    local handlers={}
+    return {Connect=function(_,callback) table.insert(handlers,callback) end,
+        Fire=function(_,...) for _,callback in ipairs(handlers) do callback(...) end end}
+end
+local clock,jobs=0,{}
+local task={}
+function task.wait(delay) coroutine.yield(delay or 0) end
+function task.spawn(callback)
+    local thread=coroutine.create(callback)
+    local ok,delay=coroutine.resume(thread);assert(ok,delay)
+    if coroutine.status(thread)~='dead' then table.insert(jobs,{thread=thread,at=clock+delay}) end
+end
+local function advance(seconds)
+    local finish=clock+seconds
+    while true do
+        local index,nextJob=nil,nil
+        for i,job in ipairs(jobs) do if job.at<=finish and (not nextJob or job.at<nextJob.at) then index,nextJob=i,job end end
+        if not index then break end
+        table.remove(jobs,index);clock=nextJob.at
+        local ok,delay=coroutine.resume(nextJob.thread);assert(ok,delay)
+        if coroutine.status(nextJob.thread)~='dead' then table.insert(jobs,{thread=nextJob.thread,at=clock+delay}) end
+    end
+    clock=finish
+end
+local list,snapshots,remotes,calls={},{},{},{}
+local players={PlayerRemoving=signal()}
+function players:GetPlayers()
+    local result={};for _,player in ipairs(list) do if player.Parent==self then table.insert(result,player) end end
+    return result
+end
+local Instance={new=function(kind)
+    local object={}
+    if kind=='RemoteEvent' then
+        object.OnServerEvent=signal()
+        function object:FireClient(player,payload) snapshots[player]=payload end
+        table.insert(remotes,object)
+    elseif kind=='TeleportOptions' then function object:SetTeleportData(data) self.data=data end end
+    return object
+end}
+local reservations=0
+local teleport={TeleportInitFailed=signal()}
+function teleport:ReserveServerAsync(placeId)
+    assert(placeId==200);reservations+=1;return 'reserved-'..reservations
+end
+function teleport:TeleportAsync(placeId,group,options)
+    table.insert(calls,{placeId=placeId,group=table.clone(group),options=options})
+end
+local game={PlaceId=100,GetService=function(_,name)
+    if name=='Players' then return players end
+    if name=='TeleportService' then return teleport end
+    if name=='RunService' then return {IsStudio=function() return false end} end
+    return {AutoChess={PlaceConfig='Config',Queue='Queue'}}
+end}
+local World={build=function() end,queueZone=function() return {} end}
+local script={Parent={World='World'}}
+local os={clock=function() return clock end}
+local CFrame={new=function(x,y,z) return {X=x,Y=y,Z=z} end}
+local warn=function() end
+for i=1,9 do
+    local root={Position={X=0,Y=3,Z=0}}
+    local character={FindFirstChild=function() return root end}
+    function character:PivotTo(position) root.Position=position end
+    list[i]={UserId=i,Parent=players,Character=character,root=root}
+end
+local function startServer()
+    local modules={Config=Config,Queue=Queue,World=World}
+    local require=function(name) return modules[name] end
+    --[[SERVER_SOURCE]]
+end
+startServer()
+advance(1)
+assert(snapshots[list[1]].count==0 and #calls==0,'nine plaza visitors do not start match')
+for i=1,7 do list[i].root.Position.Z=-38 end
+advance(10)
+assert(snapshots[list[1]].count==7 and #calls==0,'seven entrants do not teleport')
+list[8].root.Position.Z=-38
+advance(3)
+assert(snapshots[list[1]].phase=='Countdown','eight entrants start countdown')
+remotes[2].OnServerEvent:Fire(list[7])
+advance(0.5)
+assert(snapshots[list[1]].count==7 and snapshots[list[1]].phase=='Waiting','exit button removes entrant and cancels')
+advance(10)
+assert(#calls==0,'cancelled batch never teleports')
+list[7].root.Position.Z=-38
+advance(8.5)
+assert(#calls==1 and #calls[1].group==8,'one teleport contains exactly eight queued players')
+assert(not table.find(calls[1].group,list[9]),'plaza visitor excluded from match')
+assert(calls[1].options.ReservedServerAccessCode=='reserved-1','private destination created')
+assert(calls[1].options.data.kind=='AutoChessMatch','match handoff metadata')
+teleport.TeleportInitFailed:Fire(list[8],nil,'simulated failure',200,calls[1].options)
+advance(2.5)
+assert(#calls==2 and #calls[2].group==1,'failed entrant retried individually')
+assert(calls[2].options.ReservedServerAccessCode==calls[1].options.ReservedServerAccessCode,'retry preserves same match server')
+print('ALL LOBBY TELEPORT FLOW TESTS PASSED (MOCK SERVICES)')

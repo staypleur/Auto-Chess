@@ -1,6 +1,7 @@
 local Catalog=require('../src/shared/Catalog')
 local Rules=require('../src/shared/Rules')
 local Lobby=require('../src/shared/Lobby')
+local Config=require('../src/shared/PlaceConfig')
 local function signal()
     local handlers={}
     return {Connect=function(_,callback) table.insert(handlers,callback) end,
@@ -44,7 +45,9 @@ local Instance={new=function(kind)
 end}
 local game={GetService=function(_,name)
     if name=='Players' then return players end
-    return {AutoChess={Catalog='Catalog',Rules='Rules',Lobby='Lobby'}}
+    if name=='RunService' then return {IsStudio=function() return true end} end
+    if name=='TeleportService' then return {TeleportInitFailed=signal()} end
+    return {AutoChess={Catalog='Catalog',Rules='Rules',Lobby='Lobby',PlaceConfig='Config'}}
 end}
 local World={build=function() end,route=function() end,LobbyLabel={}}
 local script={Parent={World='World'}}
@@ -53,7 +56,7 @@ local Random={new=function() return {
     NextInteger=function(_,low) return low end} end}
 local os={clock=function() return clock end}
 local function startServer()
-    local modules={Catalog=Catalog,Rules=Rules,Lobby=Lobby,World=World}
+    local modules={Catalog=Catalog,Rules=Rules,Lobby=Lobby,World=World,Config=Config}
     local require=function(name) return modules[name] end
     --[[SERVER_SOURCE]]
 end

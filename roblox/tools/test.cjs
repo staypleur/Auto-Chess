@@ -11,11 +11,12 @@ fs.mkdirSync(path.join(temp,'tests'))
 for(const name of fs.readdirSync(path.join(root,'src','shared'))) {
   if(name.endsWith('.luau')) fs.copyFileSync(path.join(root,'src','shared',name),path.join(temp,'src','shared',name))
 }
-const tests=['lobby.spec.luau','rules.spec.luau','server.spec.luau']
+const tests=['lobby.spec.luau','queue.spec.luau','rules.spec.luau','server.spec.luau','queue-server.spec.luau']
 for(const name of tests) {
-  if(name==='server.spec.luau') {
-    const fixture=fs.readFileSync(path.join(root,'tests','server.spec.template'),'utf8')
-    const server=fs.readFileSync(path.join(root,'src','server','Main.server.luau'),'utf8')
+  if(name==='server.spec.luau' || name==='queue-server.spec.luau') {
+    const queue=name==='queue-server.spec.luau'
+    const fixture=fs.readFileSync(path.join(root,'tests',queue?'queue-server.spec.template':'server.spec.template'),'utf8')
+    const server=fs.readFileSync(path.join(root,'src',queue?'lobby':'server',queue?'Queue.server.luau':'Main.server.luau'),'utf8')
     fs.writeFileSync(path.join(temp,'tests',name),fixture.replace('--[[SERVER_SOURCE]]',server))
   } else fs.copyFileSync(path.join(root,'tests',name),path.join(temp,'tests',name))
   const result=spawnSync(binary,[path.join(temp,'tests',name)],{encoding:'utf8'})

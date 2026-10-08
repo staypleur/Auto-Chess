@@ -1,0 +1,14 @@
+{
+  "name": "AutoChessLobby",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {"AutoChess": {"$path": "src/shared"}},
+    "ServerScriptService": {"AutoChessServer": {
+      "Queue": {"$path": "src/lobby/Queue.server.luau"},
+      "World": {"$path": "src/server/World.luau"}
+    }},
+    "StarterPlayer": {"StarterPlayerScripts": {
+      "LobbyClient": {"$path": "src/lobby/Lobby.client.luau"}
+    }}
+  }
+}

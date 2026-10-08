@@ -3,6 +3,9 @@ local ReplicatedStorage = game:GetService('ReplicatedStorage')
 local Catalog = require(ReplicatedStorage.AutoChess.Catalog)
 local Rules = require(ReplicatedStorage.AutoChess.Rules)
 local Lobby = require(ReplicatedStorage.AutoChess.Lobby)
+local Config = require(ReplicatedStorage.AutoChess.PlaceConfig)
+local RunService=game:GetService('RunService')
+local TeleportService=game:GetService('TeleportService')
 local World = require(script.Parent.World)
 World.build()
 local folder = Instance.new('Folder')
@@ -19,6 +22,7 @@ local phase, round, remaining = 'Lobby', 0, 0
 local activeMatch = false
 local lobbyEpoch=0
 local tryStart
+local arrivalTimerStarted=false
 local rng = Random.new()
 local pools = {COMMON={}, UNCOMMON={}, RARE={}, EPIC={}, ULTRA={}}
 for name, data in pairs(Catalog.units) do
@@ -70,6 +74,21 @@ local function publishAll()
         or (phase=='Starting' and ('8명 집결!\n'..remaining..'초 후 출발') or '경기 진행 중')
     for player in pairs(states) do publish(player) end
 end
+local function returnToLobby(group)
+    if RunService:IsStudio() then return end
+    local ok,err=pcall(function() TeleportService:TeleportAsync(Config.LobbyPlaceId,group) end)
+    if not ok then
+        warn('Return teleport failed: '..tostring(err))
+        for _,player in ipairs(group) do if states[player] then states[player].exitError='로비 이동 실패. 다시 이동 버튼을 눌러 주세요.' end end
+        publishAll()
+    end
+end
+TeleportService.TeleportInitFailed:Connect(function(player,_,errorMessage,placeId)
+    if placeId==Config.LobbyPlaceId and states[player] then
+        states[player].exitError='로비 이동 실패. 다시 이동 버튼을 눌러 주세요.'
+        warn(tostring(errorMessage));publish(player)
+    end
+end)
 local function participants()
     local list = {}
     for player, state in pairs(states) do
@@ -152,6 +171,10 @@ local function runMatch()
     phase='Finished'
     publishAll()
     task.wait(8)
+    if not RunService:IsStudio() then
+        returnToLobby(Players:GetPlayers())
+        return
+    end
     phase='Lobby'
     activeMatch=false
     for player,state in pairs(states) do
@@ -195,6 +218,7 @@ action.OnServerEvent:Connect(function(player, request)
     if now-(lastAction[player] or 0)<0.1 then return end
     lastAction[player]=now
     if request.kind=='Sync' then publish(player); return end
+    if request.kind=='Return' and phase=='Finished' then returnToLobby({player});return end
     if phase~='Preparation' or not state.playing or state.hp<=0 then return end
     if request.kind=='Buy' and validInteger(request.slot,1,6) then
         local name=state.offers[request.slot]
@@ -239,6 +263,15 @@ action.OnServerEvent:Connect(function(player, request)
     publish(player)
 end)
 local function joined(player)
+    if not RunService:IsStudio() then
+        local join=player:GetJoinData()
+        if Config.LobbyPlaceId<=0 or Config.MatchPlaceId<=0 or game.PlaceId~=Config.MatchPlaceId
+            or game.PrivateServerId=='' or game.PrivateServerOwnerId~=0
+            or join.SourcePlaceId~=Config.LobbyPlaceId or join.SourceGameId~=game.GameId then
+            player:Kick('로비의 경기 입장 구역을 통해 참가해 주세요.')
+            return
+        end
+    end
     local slot=Lobby.slots(states)
     if not states[player] and not slot then
         player:Kick('이 서버는 최대 8명이 플레이할 수 있습니다.')
@@ -255,6 +288,17 @@ local function joined(player)
     end
     publishAll()
     tryStart()
+    if not RunService:IsStudio() and not arrivalTimerStarted then
+        arrivalTimerStarted=true
+        task.spawn(function()
+            task.wait(60)
+            if not activeMatch then
+                phase='Finished'
+                for _,state in pairs(states) do state.exitError='8명 도착 실패. 로비로 돌아갑니다.' end
+                publishAll();returnToLobby(Players:GetPlayers())
+            end
+        end)
+    end
 end
 Players.PlayerAdded:Connect(joined)
 Players.PlayerRemoving:Connect(function(player)
